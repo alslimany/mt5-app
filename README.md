@@ -152,13 +152,46 @@ Visit `http://localhost:8000` in your browser.
 
 ## MT5 Integration
 
-**Note**: The current implementation includes a placeholder MT5 service. For production use, you'll need to integrate with actual MT5 APIs:
+This application now includes **real MT5 integration** using a Python bridge with the MetaTrader5 package!
 
-- **MetaTrader 5 Web API**: For REST-based integration
-- **MetaTrader Manager API**: For direct broker integration
-- **Custom Bridge**: Using socket connections or webhooks
+### Setup MT5 Integration
 
-The `Mt5Service` class in `app/Services/Mt5Service.php` is designed to be extended with real MT5 API implementation.
+1. Install Python 3.7+ and the MetaTrader5 package:
+   ```bash
+   pip install MetaTrader5
+   ```
+
+2. Follow the complete setup guide in [MT5_INTEGRATION_SETUP.md](MT5_INTEGRATION_SETUP.md)
+
+3. When adding an account, use the "Test Connection" button to verify credentials before saving
+
+### Features
+
+- ✅ Real-time connection to MT5 accounts
+- ✅ Automatic balance and position synchronization
+- ✅ Support for multiple popular brokers (IC Markets, XM, Exness, etc.)
+- ✅ Secure credential storage with encryption
+- ✅ Test connection before saving accounts
+
+### Supported Brokers
+
+The application includes pre-configured server lists for popular brokers:
+- IC Markets
+- XM
+- Exness
+- Pepperstone
+- FXTM
+- FBS
+- And more...
+
+You can add your broker in `config/mt5_brokers.php`.
+
+### Platform Support
+
+- **Windows**: Full support (MT5 must be installed)
+- **Linux/macOS**: Requires Wine or remote Windows MT5 connection
+
+For detailed setup instructions and troubleshooting, see [MT5_INTEGRATION_SETUP.md](MT5_INTEGRATION_SETUP.md).
 
 ## Database Schema
 

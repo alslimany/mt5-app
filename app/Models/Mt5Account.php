@@ -12,6 +12,8 @@ class Mt5Account extends Model
         'user_id',
         'account_name',
         'account_number',
+        'password',
+        'investor_password',
         'server',
         'broker',
         'api_token',
@@ -38,6 +40,15 @@ class Mt5Account extends Model
         'leverage' => 'integer',
         'is_active' => 'boolean',
         'last_sync_at' => 'datetime',
+        'password' => 'encrypted',
+        'investor_password' => 'encrypted',
+    ];
+
+    protected $hidden = [
+        'password',
+        'investor_password',
+        'api_token',
+        'api_secret',
     ];
 
     public function user(): BelongsTo

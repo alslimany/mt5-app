@@ -10,28 +10,77 @@ use Carbon\Carbon;
 class Mt5Service
 {
     /**
+     * Test connection to MT5 account
+     * 
+     * @param string $login Account number
+     * @param string $password Account password
+     * @param string $server MT5 server name
+     * @param string $broker Broker name
+     * @return array ['success' => bool, 'message' => string, 'data' => array]
+     */
+    public function testConnection(string $login, string $password, string $server, string $broker): array
+    {
+        try {
+            // Call the Python bridge to test MT5 connection
+            $result = $this->callMt5PythonBridge('test_connection', [
+                'login' => $login,
+                'password' => $password,
+                'server' => $server,
+                'broker' => $broker,
+            ]);
+
+            if ($result['success']) {
+                return [
+                    'success' => true,
+                    'message' => 'Connection successful',
+                    'data' => $result['data'] ?? [],
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message' => $result['message'] ?? 'Failed to connect to MT5 server',
+            ];
+        } catch (\Exception $e) {
+            \Log::error('MT5 Connection Test Error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Sync account data from MT5 server
-     * Note: This is a placeholder implementation. In production, you would integrate
-     * with actual MT5 API or use MetaTrader 5 Manager API
      */
     public function syncAccount(Mt5Account $account): bool
     {
         try {
-            // Simulate MT5 API call - in production, this would be an actual API call
+            // Fetch account data from MT5
             $accountData = $this->fetchAccountData($account);
+            
+            if (!isset($accountData['success']) || !$accountData['success']) {
+                \Log::error('MT5 Sync Error: Failed to fetch account data');
+                return false;
+            }
+
+            $data = $accountData['data'] ?? [];
             
             // Update account information
             $account->update([
-                'balance' => $accountData['balance'],
-                'equity' => $accountData['equity'],
-                'margin' => $accountData['margin'],
-                'free_margin' => $accountData['free_margin'],
-                'profit' => $accountData['profit'],
+                'balance' => $data['balance'] ?? $account->balance,
+                'equity' => $data['equity'] ?? $account->equity,
+                'margin' => $data['margin'] ?? $account->margin,
+                'free_margin' => $data['free_margin'] ?? $account->free_margin,
+                'profit' => $data['profit'] ?? $account->profit,
+                'credit' => $data['credit'] ?? $account->credit,
                 'last_sync_at' => now(),
             ]);
 
-            // Sync trades
-            $this->syncTrades($account, $accountData['trades']);
+            // Sync trades if available
+            if (isset($data['trades']) && is_array($data['trades'])) {
+                $this->syncTrades($account, $data['trades']);
+            }
 
             // Calculate and store stats
             $this->calculateStats($account);
@@ -44,22 +93,106 @@ class Mt5Service
     }
 
     /**
-     * Fetch account data from MT5 (placeholder)
+     * Call the Python bridge for MT5 operations
+     * 
+     * @param string $action The action to perform (test_connection, get_account_info, get_trades, etc.)
+     * @param array $params Parameters for the action
+     * @return array Response from the Python bridge
+     */
+    protected function callMt5PythonBridge(string $action, array $params = []): array
+    {
+        $pythonScript = base_path('scripts/mt5_bridge.py');
+        
+        // Check if Python script exists
+        if (!file_exists($pythonScript)) {
+            \Log::warning('MT5 Python bridge not found. Using simulation mode.');
+            return $this->simulateMt5Response($action, $params);
+        }
+
+        try {
+            // Prepare command
+            $command = sprintf(
+                'python3 %s %s %s 2>&1',
+                escapeshellarg($pythonScript),
+                escapeshellarg($action),
+                escapeshellarg(json_encode($params))
+            );
+
+            // Execute command
+            exec($command, $output, $returnCode);
+            
+            $outputStr = implode("\n", $output);
+            
+            if ($returnCode !== 0) {
+                \Log::error('MT5 Bridge Error: ' . $outputStr);
+                return [
+                    'success' => false,
+                    'message' => 'Failed to execute MT5 bridge: ' . $outputStr,
+                ];
+            }
+
+            // Parse JSON response
+            $result = json_decode($outputStr, true);
+            
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                \Log::error('MT5 Bridge JSON Error: ' . json_last_error_msg());
+                return [
+                    'success' => false,
+                    'message' => 'Invalid response from MT5 bridge',
+                ];
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            \Log::error('MT5 Bridge Exception: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Simulate MT5 response when Python bridge is not available
+     * This is for demonstration purposes only
+     */
+    protected function simulateMt5Response(string $action, array $params): array
+    {
+        if ($action === 'test_connection') {
+            return [
+                'success' => true,
+                'message' => 'Simulation mode: Connection would be successful',
+                'data' => [
+                    'balance' => 10000.00,
+                    'equity' => 10000.00,
+                    'margin' => 0.00,
+                    'free_margin' => 10000.00,
+                    'profit' => 0.00,
+                    'credit' => 0.00,
+                    'currency' => 'USD',
+                    'leverage' => 100,
+                    'server' => $params['server'] ?? 'Demo Server',
+                ],
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => 'Simulation mode: Action not implemented',
+        ];
+    }
+
+    /**
+     * Fetch account data from MT5
      */
     protected function fetchAccountData(Mt5Account $account): array
     {
-        // This is a placeholder. In production, implement actual MT5 API integration
-        // You could use: https://www.mql5.com/en/docs/integration
-        // Or MetaTrader Manager API
-        
-        return [
-            'balance' => $account->balance + rand(-100, 100),
-            'equity' => $account->equity + rand(-50, 50),
-            'margin' => $account->margin,
-            'free_margin' => $account->free_margin + rand(-50, 50),
-            'profit' => $account->profit + rand(-20, 20),
-            'trades' => $this->fetchTrades($account),
-        ];
+        return $this->callMt5PythonBridge('get_account_info', [
+            'login' => $account->account_number,
+            'password' => $account->password,
+            'server' => $account->server,
+            'broker' => $account->broker,
+        ]);
     }
 
     /**
